@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { GoogleGenAI } from '@google/genai';
 
 interface ComparableItem {
   id: string;
@@ -50,24 +52,67 @@ const COMPARABLE_ITEMS: ComparableItem[] = [
   },
 ];
 
-const AI_RECOMMENDED_PRICE = 48;
+const DEFAULT_AI_RECOMMENDED_PRICE = 48;
 
-export default function MarketPricingPage() {
-  const [userPrice, setUserPrice] = useState<string>(AI_RECOMMENDED_PRICE.toString());
+function MarketContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const itemDescription = searchParams.get('description') || '';
+
+  const [aiPrice, setAiPrice] = useState<number>(DEFAULT_AI_RECOMMENDED_PRICE);
+  const [userPrice, setUserPrice] = useState<string>(DEFAULT_AI_RECOMMENDED_PRICE.toString());
+  const [isLoadingGemini, setIsLoadingGemini] = useState<boolean>(true);
+
+  useEffect(() => {
+    async function fetchGeminiPrice() {
+      if (!itemDescription) {
+        setIsLoadingGemini(false);
+        return;
+      }
+
+      try {
+        const ai = new GoogleGenAI({});
+        
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: `Analyze the following item description and estimate a reasonable resale market asking price in USD. Return ONLY a single integer representing the dollar value (e.g. 48). Do not add currency symbols, words, or markdown formatting.\n\nDescription: "${itemDescription}"`,
+        });
+
+        const textResponse = response.text?.trim() || '';
+        const parsedPrice = parseInt(textResponse.replace(/[^0-9]/g, ''), 10);
+
+        if (!isNaN(parsedPrice) && parsedPrice > 0) {
+          setAiPrice(parsedPrice);
+          setUserPrice(parsedPrice.toString());
+        }
+      } catch (error) {
+        console.error('Failed to get market price evaluation from Gemini:', error);
+      } finally {
+        setIsLoadingGemini(false);
+      }
+    }
+
+    fetchGeminiPrice();
+  }, [itemDescription]);
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUserPrice(e.target.value);
   };
 
   const handleResetPrice = () => {
-    setUserPrice(AI_RECOMMENDED_PRICE.toString());
+    setUserPrice(aiPrice.toString());
   };
 
   const displayPrice = userPrice.trim() === '' ? '0' : userPrice;
 
+  const handleListProduct = () => {
+    const encodedDesc = encodeURIComponent(itemDescription);
+    const encodedPrice = encodeURIComponent(displayPrice);
+    router.push(`/finish?price=${encodedPrice}&description=${encodedDesc}`);
+  };
+
   return (
     <div className="bg-[#09090B] text-[#F4F4F5] font-sans antialiased min-h-screen flex flex-col justify-between selection:bg-[#E5D3B3] selection:text-black">
-      {/* Hide scrollbar utility */}
       <style jsx global>{`
         .no-scrollbar::-webkit-scrollbar {
           display: none;
@@ -78,7 +123,7 @@ export default function MarketPricingPage() {
         }
       `}</style>
 
-      {/* Status Bar / Mobile Header */}
+      {/* Header */}
       <header className="pt-3 px-6 pb-2 shrink-0">
         <div className="flex items-center justify-between text-xs text-neutral-400 font-medium tracking-wide">
           <span>9:41</span>
@@ -95,10 +140,10 @@ export default function MarketPricingPage() {
           </div>
         </div>
 
-        {/* Navigation Bar */}
         <div className="mt-4 flex items-center justify-between">
           <button
             type="button"
+            onClick={() => router.back()}
             className="w-9 h-9 rounded-full bg-[#18181D] border border-[#23232A] flex items-center justify-center text-neutral-300 hover:text-white transition-colors"
             aria-label="Go back"
           >
@@ -118,8 +163,6 @@ export default function MarketPricingPage() {
 
       {/* Main Content */}
       <main className="flex-1 px-5 pt-2 pb-6 max-w-md mx-auto w-full space-y-6">
-        
-        {/* Title */}
         <div className="text-center pt-1 pb-1">
           <h1 className="font-serif text-[28px] sm:text-[30px] font-normal tracking-tight text-white leading-tight">
             See what the market says
@@ -129,7 +172,6 @@ export default function MarketPricingPage() {
           </p>
         </div>
 
-        {/* Similar items section */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-[11px] font-semibold tracking-[0.08em] uppercase text-neutral-400">
@@ -140,7 +182,6 @@ export default function MarketPricingPage() {
             </span>
           </div>
 
-          {/* Carousel Cards */}
           <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 -mx-5 px-5 scroll-smooth">
             {COMPARABLE_ITEMS.map((item) => (
               <div
@@ -178,7 +219,6 @@ export default function MarketPricingPage() {
           </div>
         </section>
 
-        {/* Market Range Summary Card */}
         <div className="bg-[#121215] border border-[#23232A] rounded-2xl px-4 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-[#18181D] border border-[#23232A] flex items-center justify-center text-neutral-400">
@@ -195,37 +235,38 @@ export default function MarketPricingPage() {
 
         {/* AI Recommendation Section */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-[#191714] to-[#121216] border border-[#E5D3B3]/30 p-5 shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
-          <div className="absolute -top-10 -right-10 w-28 h-28 bg-[#E5D3B3]/10 rounded-full blur-2xl pointer-events-none" />
-
           <div className="relative z-10 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="inline-block w-2 h-2 rounded-full bg-[#E5D3B3] shadow-[0_0_8px_rgba(229,211,179,0.8)]" />
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-[#E5D3B3]">
-                  AI Suggested Asking Price
+                  Gemini Suggested Asking Price
                 </span>
               </div>
               <span className="text-[10px] text-neutral-400 bg-black/40 border border-[#23232A] px-2 py-0.5 rounded-full">
-                Recommended
+                {isLoadingGemini ? 'Evaluating...' : 'Recommended'}
               </span>
             </div>
 
             <div className="flex items-baseline gap-2 pt-1">
-              <span className="font-serif text-4xl sm:text-[42px] font-medium tracking-tight text-[#E5D3B3]">
-                ${AI_RECOMMENDED_PRICE}
-              </span>
+              {isLoadingGemini ? (
+                <div className="h-10 w-28 bg-[#E5D3B3]/20 animate-pulse rounded-lg" />
+              ) : (
+                <span className="font-serif text-4xl sm:text-[42px] font-medium tracking-tight text-[#E5D3B3]">
+                  ${aiPrice}
+                </span>
+              )}
               <span className="text-xs text-neutral-400 font-normal">
                 estimated optimal listing
               </span>
             </div>
 
             <p className="text-xs text-neutral-300/90 leading-relaxed font-light pt-1 border-t border-[#23232A]/60">
-              Based on similar items and the condition identified during your inspection.
+              Evaluated by Gemini using your item's custom description and condition details.
             </p>
           </div>
         </div>
 
-        {/* Editable Price Control */}
         <section className="space-y-2.5 pt-1">
           <div className="flex items-center justify-between px-1">
             <label htmlFor="price-input" className="text-sm font-medium text-white tracking-wide">
@@ -258,9 +299,10 @@ export default function MarketPricingPage() {
               <button
                 type="button"
                 onClick={handleResetPrice}
-                className="text-[11px] text-[#E5D3B3] hover:text-white px-2.5 py-1 rounded-lg bg-[#1D1B17] border border-[#E5D3B3]/30 transition-colors font-medium"
+                disabled={isLoadingGemini}
+                className="text-[11px] text-[#E5D3B3] hover:text-white px-2.5 py-1 rounded-lg bg-[#1D1B17] border border-[#E5D3B3]/30 transition-colors font-medium disabled:opacity-50"
               >
-                Match AI (${AI_RECOMMENDED_PRICE})
+                Match Gemini (${aiPrice})
               </button>
             </div>
           </div>
@@ -268,14 +310,14 @@ export default function MarketPricingPage() {
             You keep 100% control over your final price.
           </p>
         </section>
-
       </main>
 
-      {/* Sticky Bottom CTA */}
+      {/* Footer / CTA */}
       <footer className="p-5 pt-3 bg-gradient-to-t from-[#09090B] via-[#09090B]/95 to-transparent shrink-0">
         <div className="max-w-md mx-auto w-full">
           <button
             type="button"
+            onClick={handleListProduct}
             className="w-full py-4 px-6 rounded-full bg-[#E5D3B3] text-[#0F0F12] font-semibold text-base tracking-wide flex items-center justify-center gap-2 transition-all hover:bg-[#F3EADB] active:scale-[0.99] shadow-[0_8px_24px_rgba(229,211,179,0.15)]"
           >
             <span>List at ${displayPrice}</span>
@@ -286,5 +328,13 @@ export default function MarketPricingPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function MarketPricingPage() {
+  return (
+    <Suspense fallback={<div className="bg-[#09090B] min-h-screen" />}>
+      <MarketContent />
+    </Suspense>
   );
 }
