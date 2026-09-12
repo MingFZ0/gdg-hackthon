@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface CapturedAngle {
@@ -10,7 +10,7 @@ interface CapturedAngle {
   displayLabel: string;
 }
 
-const CAPTURED_ANGLES: CapturedAngle[] = [
+const DEFAULT_ANGLES: CapturedAngle[] = [
   {
     id: 'front',
     label: 'Front',
@@ -39,11 +39,35 @@ const CAPTURED_ANGLES: CapturedAngle[] = [
 
 export default function ItemReviewPage() {
   const router = useRouter();
-  const [selectedAngle, setSelectedAngle] = useState<CapturedAngle>(CAPTURED_ANGLES[0]);
+  const [angles, setAngles] = useState<CapturedAngle[]>(DEFAULT_ANGLES);
+  const [selectedAngle, setSelectedAngle] = useState<CapturedAngle>(DEFAULT_ANGLES[0]);
   const [isFading, setIsFading] = useState<boolean>(false);
   const [description, setDescription] = useState<string>(
     'Crafted from supple quilted lambskin leather with signature polished gold-tone hardware. Features a convertible chain strap and structured silhouette. Overall in very good pre-owned condition with clean interior lining and minor, honest corner wear consistent with light gentle use. Serial stamping intact.'
   );
+
+  // Read user captured photos on page load
+  useEffect(() => {
+    const savedPhotos = sessionStorage.getItem('captured_photos');
+    if (savedPhotos) {
+      try {
+        const photoUrls: string[] = JSON.parse(savedPhotos);
+        if (photoUrls.length > 0) {
+          const customAngles: CapturedAngle[] = photoUrls.map((url, index) => ({
+            id: `captured-${index}`,
+            label: index === 0 ? 'Front' : index === 1 ? 'Back' : index === 2 ? 'Detail' : `Angle ${index + 1}`,
+            displayLabel: index === 0 ? 'Front View' : index === 1 ? 'Back View' : index === 2 ? 'Detail View' : `Captured Angle ${index + 1}`,
+            src: url,
+          }));
+
+          setAngles(customAngles);
+          setSelectedAngle(customAngles[0]);
+        }
+      } catch (e) {
+        console.error('Failed to load captured photos:', e);
+      }
+    }
+  }, []);
 
   const handleAngleSwitch = (angle: CapturedAngle) => {
     if (angle.id === selectedAngle.id) return;
@@ -113,7 +137,7 @@ export default function ItemReviewPage() {
               Your item is ready
             </h1>
             <p className="text-xs text-neutral-400 mt-1 font-light tracking-wide">
-              4 inspection angles captured &amp; appraised
+              {angles.length} inspection angle{angles.length > 1 ? 's' : ''} captured &amp; appraised
             </p>
           </div>
 
@@ -141,7 +165,7 @@ export default function ItemReviewPage() {
             </div>
 
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 pt-0.5 px-0.5 scroll-smooth">
-              {CAPTURED_ANGLES.map((angle) => {
+              {angles.map((angle) => {
                 const isActive = angle.id === selectedAngle.id;
                 return (
                   <button

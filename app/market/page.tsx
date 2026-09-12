@@ -71,11 +71,13 @@ function MarketContent() {
       }
 
       try {
-        const ai = new GoogleGenAI({});
+        const ai = new GoogleGenAI({
+          apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY,
+        });
         
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: `Analyze the following item description and estimate a reasonable resale market asking price in USD. Return ONLY a single integer representing the dollar value (e.g. 48). Do not add currency symbols, words, or markdown formatting.\n\nDescription: "${itemDescription}"`,
+          model: 'gemini-3.6-flash',
+          contents: `Analyze the following item description and estimate a reasonable resale market asking p...`
         });
 
         const textResponse = response.text?.trim() || '';
